@@ -17,6 +17,7 @@ import torch.utils.data.distributed
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as models
+import intel_pytorch_extension as ipex
 
 model_names = sorted(name for name in models.__dict__
     if name.islower() and not name.startswith("__")
@@ -73,6 +74,8 @@ parser.add_argument('--multiprocessing-distributed', action='store_true',
                          'N processes per node, which has N GPUs. This is the '
                          'fastest way to use PyTorch for either single node or '
                          'multi node data parallel training')
+parser.add_argument('--nhwc', dest='nhwc', action='store_true',
+                    help='evaluate nhwc model')
 
 best_acc1 = 0
 
@@ -324,32 +327,61 @@ def validate(val_loader, model, criterion, args):
 
     with torch.no_grad():
         end = time.time()
-        for i, (images, target) in enumerate(val_loader):
-            if args.gpu is not None:
-                images = images.cuda(args.gpu, non_blocking=True)
-            if torch.cuda.is_available():
-                target = target.cuda(args.gpu, non_blocking=True)
+        if args.nhwc:
+                for i, (images, target) in enumerate(val_loader):
+                    if args.gpu is not None:
+                        images = images.cuda(args.gpu, non_blocking=True)
+                    if torch.cuda.is_available():
+                        target = target.cuda(args.gpu, non_blocking=True)
+                    images = images.contiguous(memory_format=torch.channels_last)
+                    model = model.to(memory_format=torch.channels_last)
+                    # compute output
+                    output = model(images)
+                    loss = criterion(output, target)
 
-            # compute output
-            output = model(images)
-            loss = criterion(output, target)
+                    # measure accuracy and record loss
+                    acc1, acc5 = accuracy(output, target, topk=(1, 5))
+                    losses.update(loss.item(), images.size(0))
+                    top1.update(acc1[0], images.size(0))
+                    top5.update(acc5[0], images.size(0))
 
-            # measure accuracy and record loss
-            acc1, acc5 = accuracy(output, target, topk=(1, 5))
-            losses.update(loss.item(), images.size(0))
-            top1.update(acc1[0], images.size(0))
-            top5.update(acc5[0], images.size(0))
+                    # measure elapsed time
+                    batch_time.update(time.time() - end)
+                    end = time.time()
 
-            # measure elapsed time
-            batch_time.update(time.time() - end)
-            end = time.time()
+                    if i % args.print_freq == 0:
+                        progress.display(i)
 
-            if i % args.print_freq == 0:
-                progress.display(i)
+                # TODO: this should also be done with the ProgressMeter
+                print(' * Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'
+                    .format(top1=top1, top5=top5))
+        else:
+                for i, (images, target) in enumerate(val_loader):
+                    if args.gpu is not None:
+                        images = images.cuda(args.gpu, non_blocking=True)
+                    if torch.cuda.is_available():
+                        target = target.cuda(args.gpu, non_blocking=True)
 
-        # TODO: this should also be done with the ProgressMeter
-        print(' * Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'
-              .format(top1=top1, top5=top5))
+                    # compute output
+                    output = model(images)
+                    loss = criterion(output, target)
+
+                    # measure accuracy and record loss
+                    acc1, acc5 = accuracy(output, target, topk=(1, 5))
+                    losses.update(loss.item(), images.size(0))
+                    top1.update(acc1[0], images.size(0))
+                    top5.update(acc5[0], images.size(0))
+
+                    # measure elapsed time
+                    batch_time.update(time.time() - end)
+                    end = time.time()
+
+                    if i % args.print_freq == 0:
+                        progress.display(i)
+
+                # TODO: this should also be done with the ProgressMeter
+                print(' * Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'
+                    .format(top1=top1, top5=top5))
 
     return top1.avg
 
