@@ -1,7 +1,7 @@
-#git clone https://github.com/872520333/examples.git
-#cd examples/imagenet
-#git checkout enable_nhwc
-
+git clone https://github.com/872520333/examples.git ${WORKSPACE}/resbet50
+cd ${WORKSPACE}/resbet50/imagenet
+git checkout enable_nhwc
+git pull
 for var in $@
     do
         case $var in
