@@ -327,6 +327,10 @@ def validate(val_loader, model, criterion, args):
 
     with torch.no_grad():
         end = time.time()
+        num_warmup=10
+        all_iters=100
+        total_time = 0.0
+        reps_done = 0
         if args.nhwc:
                 for i, (images, target) in enumerate(val_loader):
                     if args.gpu is not None:
@@ -336,54 +340,60 @@ def validate(val_loader, model, criterion, args):
                     images = images.contiguous(memory_format=torch.channels_last)
                     model = model.to(memory_format=torch.channels_last)
                     # compute output
+                    if i < num_warmup:
+                       output = model(images)
+                       batch_time.update(time.time() - end)
+                       end = time.time()
+                       if i % args.print_freq == 0:
+                           progress.display(i)
+                       continue
+                    start = time.time()
                     output = model(images)
-                    loss = criterion(output, target)
-
-                    # measure accuracy and record loss
-                    acc1, acc5 = accuracy(output, target, topk=(1, 5))
-                    losses.update(loss.item(), images.size(0))
-                    top1.update(acc1[0], images.size(0))
-                    top5.update(acc5[0], images.size(0))
-
+                    end = time.time()
+                    delta = end - start
+                    total_time += delta
+                    reps_done += 1
                     # measure elapsed time
                     batch_time.update(time.time() - end)
                     end = time.time()
-
                     if i % args.print_freq == 0:
-                        progress.display(i)
-
-                # TODO: this should also be done with the ProgressMeter
-                print(' * Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'
-                    .format(top1=top1, top5=top5))
+                           progress.display(i)
+                    if i==all_iters:
+                           break
+                avg_time = total_time / reps_done
+                throughput = 1.0 / avg_time * args.batch_size
+                print("Throughput: {:.2f} fps".format(throughput))
         else:
                 for i, (images, target) in enumerate(val_loader):
                     if args.gpu is not None:
                         images = images.cuda(args.gpu, non_blocking=True)
                     if torch.cuda.is_available():
                         target = target.cuda(args.gpu, non_blocking=True)
-
                     # compute output
+                    if i < num_warmup:
+                       output = model(images)
+                       batch_time.update(time.time() - end)
+                       end = time.time()
+                       if i % args.print_freq == 0:
+                           progress.display(i)
+                       continue
+                    start = time.time()
                     output = model(images)
-                    loss = criterion(output, target)
-
-                    # measure accuracy and record loss
-                    acc1, acc5 = accuracy(output, target, topk=(1, 5))
-                    losses.update(loss.item(), images.size(0))
-                    top1.update(acc1[0], images.size(0))
-                    top5.update(acc5[0], images.size(0))
-
+                    end = time.time()
+                    delta = end - start
+                    total_time += delta
+                    reps_done += 1
                     # measure elapsed time
                     batch_time.update(time.time() - end)
                     end = time.time()
-
                     if i % args.print_freq == 0:
-                        progress.display(i)
-
-                # TODO: this should also be done with the ProgressMeter
-                print(' * Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'
-                    .format(top1=top1, top5=top5))
-
-    return top1.avg
+                           progress.display(i)
+                    if i==all_iters:
+                           break
+                avg_time = total_time / reps_done
+                throughput = 1.0 / avg_time * args.batch_size
+                print("Throughput: {:.2f} fps".format(throughput))
+    return 1
 
 
 def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
