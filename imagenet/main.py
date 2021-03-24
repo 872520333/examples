@@ -327,8 +327,8 @@ def validate(val_loader, model, criterion, args):
 
     with torch.no_grad():
         end = time.time()
-        num_warmup=10
-        all_iters=100
+        num_warmup=5
+        all_iters=10
         total_time = 0.0
         reps_done = 0
         if args.bf16:
