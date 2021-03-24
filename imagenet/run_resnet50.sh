@@ -1,7 +1,10 @@
-git clone https://github.com/872520333/examples.git ${WORKSPACE}/resbet50
-cd ${WORKSPACE}/resbet50/imagenet
-git checkout enable_nhwc
-git pull
+#if [ -d ${WORKSPACE}/resbet50 ];then
+#                    rm -rf ${WORKSPACE}/resbet50 || true
+#fi
+#git clone https://github.com/872520333/examples.git ${WORKSPACE}/resbet50
+#cd ${WORKSPACE}/resbet50/imagenet
+#git checkout enable_nhwc
+#git pull
 for var in $@
     do
         case $var in
